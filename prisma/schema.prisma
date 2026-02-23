@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is your Prisma schema file for Neon Stack Auth
+// Stack Auth provides managed authentication
 
 generator client {
   provider = "prisma-client-js"
@@ -10,125 +10,123 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Stack Auth Tables
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  phone     String?
-  location  String?
-  role      Role     @default(EMPLOYEE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String    @id @db.Uuid
+  email             String    @unique
+  emailVerified     Boolean   @default(false)
+  name              String?
+  image             String?
+  banned            Boolean   @default(false)
+  banReason         String?
+  banExpires        DateTime?
+  role              String?   @default("user")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
-  assignedTasks     Task[]       @relation("assignedTasks")
-  createdTasks      Task[]       @relation("createdTasks")
-  stepNotes         StepNote[]
-  progressNotes     ProgressNote[]
-  weeklyReports     WeeklyReport[]
+  accounts          Account[]
+  sessions          Session[]
+  members           Member[]
+  verification      Verification[]
 
-  @@map("users")
+  @@schema("neon_auth")
+  @@map("user")
 }
 
-enum Role {
-  ADMIN
-  EMPLOYEE
+model Account {
+  id                String    @id @db.Uuid
+  userId            String    @db.Uuid
+  providerId        String
+  accountId         String?
+  password          String?
+  accessToken       String?
+  refreshToken      String?
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  idToken           String?
+  scope             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, providerId])
+  @@schema("neon_auth")
+  @@map("account")
 }
 
-model Task {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  status      TaskStatus @default(TODO)
-  priority    Priority   @default(MEDIUM)
-  dueDate     DateTime
-  assigneeId  String
-  createdById String
-  createdAt   DateTime @default(now())
-  completedAt DateTime?
-  updatedAt   DateTime @updatedAt
+model Session {
+  id                String    @id @db.Uuid
+  userId            String    @db.Uuid
+  token             String
+  expiresAt         DateTime
+  ipAddress         String?
+  userAgent         String?
+  activeOrganizationId String?
+  impersonatedBy    String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  // Relations
-  assignee    User @relation("assignedTasks", fields: [assigneeId], references: [id], onDelete: Cascade)
-  createdBy   User @relation("createdTasks", fields: [createdById], references: [id], onDelete: Cascade)
-  actionSteps ActionStep[]
-  progressNotes ProgressNote[]
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("tasks")
+  @@schema("neon_auth")
+  @@map("session")
 }
 
-enum TaskStatus {
-  TODO
-  IN_PROGRESS
-  COMPLETED
+model Verification {
+  id                String    @id @db.Uuid
+  identifier        String
+  value             String
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@schema("neon_auth")
+  @@map("verification")
 }
 
-enum Priority {
-  LOW
-  MEDIUM
-  HIGH
+model Organization {
+  id                String    @id @db.Uuid
+  name              String
+  slug              String?
+  logo              String?
+  metadata          String?
+  createdAt         DateTime  @default(now())
+
+  members           Member[]
+  invitations       Invitation[]
+
+  @@schema("neon_auth")
+  @@map("organization")
 }
 
-model ActionStep {
-  id        String   @id @default(cuid())
-  taskId    String
-  title     String
-  completed Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Member {
+  id                String    @id @db.Uuid
+  userId            String    @db.Uuid
+  organizationId    String    @db.Uuid
+  role              String
+  createdAt         DateTime  @default(now())
 
-  // Relations
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  notes     StepNote[]
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@map("action_steps")
+  @@schema("neon_auth")
+  @@map("member")
 }
 
-model StepNote {
-  id        String   @id @default(cuid())
-  stepId    String
-  content   String
-  authorName String
-  authorId  String
-  timestamp DateTime @default(now())
+model Invitation {
+  id                String    @id @db.Uuid
+  email             String
+  organizationId    String    @db.Uuid
+  inviterId         String    @db.Uuid
+  role              String
+  status            String    @default("pending")
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
 
-  // Relations
-  step      ActionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@map("step_notes")
-}
-
-model ProgressNote {
-  id        String   @id @default(cuid())
-  taskId    String
-  content   String
-  authorName String
-  authorId  String
-  timestamp DateTime @default(now())
-
-  // Relations
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author    User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
-  @@map("progress_notes")
-}
-
-model WeeklyReport {
-  id               String   @id @default(cuid())
-  employeeId       String
-  weekStart        DateTime
-  weekEnd          DateTime
-  summary          String
-  completedCount   Int      @default(0)
-  inProgressCount  Int      @default(0)
-  overdueCount     Int      @default(0)
-  todoCount        Int      @default(0)
-  createdAt        DateTime @default(now())
-
-  // Relations
-  employee         User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@map("weekly_reports")
+  @@schema("neon_auth")
+  @@map("invitation")
 }

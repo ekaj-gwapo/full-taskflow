@@ -1,16 +1,9 @@
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
-
-// Create a connection pool for Neon
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+import { prisma } from "@/lib/prisma"
 
 export async function POST(request: NextRequest) {
-  const client = await pool.connect()
-  
   try {
     const { email, password } = await request.json()
 
@@ -22,26 +15,33 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find user and get their password from account table
-    const userResult = await client.query(
-      `SELECT u.id, u.name, u.email, u.role, a.password
-       FROM neon_auth.user u
-       LEFT JOIN neon_auth.account a ON u.id = a.userId
-       WHERE u.email = $1 AND a.providerId = 'password'`,
-      [email]
-    )
+    // Find user with password account
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        accounts: {
+          where: { providerId: "password" },
+        },
+      },
+    })
 
-    if (userResult.rows.length === 0) {
+    if (!user || user.accounts.length === 0) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       )
     }
 
-    const userData = userResult.rows[0]
-
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, userData.password)
+    const passwordAccount = user.accounts[0]
+    if (!passwordAccount.password) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      )
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, passwordAccount.password)
 
     if (!isPasswordValid) {
       return NextResponse.json(
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: userData.id, email: userData.email, role: userData.role },
+      { id: user.id, email: user.email, role: user.role },
       process.env.JWT_SECRET || "your-secret-key",
       { expiresIn: "7d" }
     )
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
       {
         message: "Login successful",
         user: {
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
         },
         token,
       },
@@ -72,11 +72,10 @@ export async function POST(request: NextRequest) {
     )
   } catch (error) {
     console.error("[v0] Login error:", error)
+    const errorMessage = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { error: "Failed to login" },
+      { error: "Failed to login", details: errorMessage },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }
