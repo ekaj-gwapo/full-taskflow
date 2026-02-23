@@ -1,11 +1,14 @@
-import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { NextRequest, NextResponse } from "next/server"
+import { Pool } from "pg"
 
-const prisma = new PrismaClient()
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
 
 export async function POST(request: NextRequest) {
+  const client = await pool.connect()
   try {
     const { name, email, password } = await request.json()
 
@@ -25,11 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const existingUser = await client.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    )
 
-    if (existingUser) {
+    if (existingUser.rows.length > 0) {
       return NextResponse.json(
         { error: "Email already registered" },
         { status: 400 }
@@ -40,14 +44,14 @@ export async function POST(request: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 10)
 
     // Create user (default role is EMPLOYEE)
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: "EMPLOYEE",
-      },
-    })
+    const userResult = await client.query(
+      `INSERT INTO users (name, email, password, role, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       RETURNING id, name, email, role`,
+      [name, email, hashedPassword, "EMPLOYEE"]
+    )
+
+    const user = userResult.rows[0]
 
     // Generate JWT token
     const token = jwt.sign(
@@ -75,5 +79,7 @@ export async function POST(request: NextRequest) {
       { error: "Failed to register user" },
       { status: 500 }
     )
+  } finally {
+    client.release()
   }
 }

@@ -1,11 +1,14 @@
-import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { NextRequest, NextResponse } from "next/server"
+import { Pool } from "pg"
 
-const prisma = new PrismaClient()
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
 
 export async function POST(request: NextRequest) {
+  const client = await pool.connect()
   try {
     const { email, password } = await request.json()
 
@@ -18,16 +21,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user
-    const user = await prisma.user.findUnique({
-      where: { email },
-    })
+    const userResult = await client.query(
+      "SELECT id, name, email, password, role, phone, location FROM users WHERE email = $1",
+      [email]
+    )
 
-    if (!user) {
+    if (userResult.rows.length === 0) {
       return NextResponse.json(
         { error: "Invalid email or password" },
         { status: 401 }
       )
     }
+
+    const user = userResult.rows[0]
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password)
@@ -67,5 +73,7 @@ export async function POST(request: NextRequest) {
       { error: "Failed to login" },
       { status: 500 }
     )
+  } finally {
+    client.release()
   }
 }
