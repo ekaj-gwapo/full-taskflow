@@ -1,31 +1,34 @@
+import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-utils"
-import { Pool } from "pg"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
-  const client = await pool.connect()
   try {
     const auth = requireAdmin(request)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const result = await client.query(
-      "SELECT id, name, email, role, createdAt FROM neon_auth.user ORDER BY createdAt DESC"
-    )
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        role: true,
+        createdAt: true,
+      },
+    })
 
-    return NextResponse.json({ users: result.rows }, { status: 200 })
+    return NextResponse.json({ users }, { status: 200 })
   } catch (error) {
-    console.error("[v0] Get users error:", error)
+    console.error("Get users error:", error)
     return NextResponse.json(
       { error: "Failed to fetch users" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }

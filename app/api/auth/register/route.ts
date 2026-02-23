@@ -1,14 +1,11 @@
+import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function POST(request: NextRequest) {
-  const client = await pool.connect()
   try {
     const { name, email, password } = await request.json()
 
@@ -28,12 +25,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await client.query(
-      "SELECT id FROM users WHERE email = $1",
-      [email]
-    )
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    })
 
-    if (existingUser.rows.length > 0) {
+    if (existingUser) {
       return NextResponse.json(
         { error: "Email already registered" },
         { status: 400 }
@@ -43,15 +39,15 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
-    const userResult = await client.query(
-      `INSERT INTO users (name, email, password, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, role`,
-      [name, email, hashedPassword, "EMPLOYEE"]
-    )
-
-    const user = userResult.rows[0]
+    // Create user (default role is EMPLOYEE)
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role: "EMPLOYEE",
+      },
+    })
 
     // Generate JWT token
     const token = jwt.sign(
@@ -74,13 +70,10 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    console.error("[v0] Registration error:", error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error("Registration error:", error)
     return NextResponse.json(
-      { error: "Failed to register user", details: errorMessage },
+      { error: "Failed to register user" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }
