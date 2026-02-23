@@ -22,9 +22,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Find user
+    // Find user and get their password from account table
     const userResult = await client.query(
-      "SELECT id, name, email, role FROM neon_auth.user WHERE email = $1",
+      `SELECT u.id, u.name, u.email, u.role, a.password
+       FROM neon_auth.user u
+       LEFT JOIN neon_auth.account a ON u.id = a.userId
+       WHERE u.email = $1 AND a.providerId = 'password'`,
       [email]
     )
 
@@ -35,15 +38,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const user = userResult.rows[0]
+    const userData = userResult.rows[0]
 
-    // Note: Password verification would require storing hashed passwords in the Neon auth table
-    // For now, we'll just authenticate the user based on email existence
-    // In a production app, you'd want to use Neon's Stack auth properly
+    // Verify password
+    const isPasswordValid = await bcrypt.compare(password, userData.password)
+
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Invalid email or password" },
+        { status: 401 }
+      )
+    }
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: userData.id, email: userData.email, role: userData.role },
       process.env.JWT_SECRET || "your-secret-key",
       { expiresIn: "7d" }
     )
@@ -52,17 +61,17 @@ export async function POST(request: NextRequest) {
       {
         message: "Login successful",
         user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+          id: userData.id,
+          name: userData.name,
+          email: userData.email,
+          role: userData.role,
         },
         token,
       },
       { status: 200 }
     )
   } catch (error) {
-    console.error("Login error:", error)
+    console.error("[v0] Login error:", error)
     return NextResponse.json(
       { error: "Failed to login" },
       { status: 500 }

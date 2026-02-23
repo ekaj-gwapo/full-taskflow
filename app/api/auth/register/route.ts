@@ -45,38 +45,55 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user
-    const createUserResult = await client.query(
-      `INSERT INTO neon_auth.user (name, email, role, emailVerified, createdAt, updatedAt)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
-       RETURNING id, name, email, role`,
-      [name, email, "user", false]
-    )
+    // Create user in transaction
+    await client.query("BEGIN")
 
-    const user = createUserResult.rows[0]
+    try {
+      // Create user first
+      const createUserResult = await client.query(
+        `INSERT INTO neon_auth.user (id, name, email, role, emailVerified, createdAt, updatedAt)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW(), NOW())
+         RETURNING id, name, email, role`,
+        [name, email, "user", false]
+      )
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || "your-secret-key",
-      { expiresIn: "7d" }
-    )
+      const user = createUserResult.rows[0]
 
-    return NextResponse.json(
-      {
-        message: "User registered successfully",
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
+      // Create account with password for this user
+      await client.query(
+        `INSERT INTO neon_auth.account (id, userId, providerId, accountId, password, createdAt, updatedAt)
+         VALUES (gen_random_uuid(), $1, 'password', $2, $3, NOW(), NOW())`,
+        [user.id, email, hashedPassword]
+      )
+
+      await client.query("COMMIT")
+
+      // Generate JWT token
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET || "your-secret-key",
+        { expiresIn: "7d" }
+      )
+
+      return NextResponse.json(
+        {
+          message: "User registered successfully",
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+          },
+          token,
         },
-        token,
-      },
-      { status: 201 }
-    )
+        { status: 201 }
+      )
+    } catch (txError) {
+      await client.query("ROLLBACK")
+      throw txError
+    }
   } catch (error) {
-    console.error("Registration error:", error)
+    console.error("[v0] Registration error:", error)
     return NextResponse.json(
       { error: "Failed to register user" },
       { status: 500 }
