@@ -1,16 +1,13 @@
+import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
 import { requireAuth } from "@/lib/auth-utils"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
@@ -27,16 +24,13 @@ export async function POST(
     }
 
     // Verify task exists and user can access it
-    const taskResult = await client.query(
-      "SELECT * FROM tasks WHERE id = $1",
-      [params.id]
-    )
+    const task = await prisma.task.findUnique({
+      where: { id: params.id },
+    })
 
-    if (taskResult.rows.length === 0) {
+    if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
-
-    const task = taskResult.rows[0]
 
     // Employee can only add steps to their own tasks
     if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
@@ -46,15 +40,18 @@ export async function POST(
       )
     }
 
-    const result = await client.query(
-      `INSERT INTO action_steps (id, "taskId", title, "createdAt", "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, NOW(), NOW())
-       RETURNING *`,
-      [params.id, title]
-    )
+    const actionStep = await prisma.actionStep.create({
+      data: {
+        taskId: params.id,
+        title,
+      },
+      include: {
+        notes: true,
+      },
+    })
 
     return NextResponse.json(
-      { message: "Action step created successfully", actionStep: result.rows[0] },
+      { message: "Action step created successfully", actionStep },
       { status: 201 }
     )
   } catch (error) {
@@ -63,7 +60,5 @@ export async function POST(
       { error: "Failed to create action step" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }

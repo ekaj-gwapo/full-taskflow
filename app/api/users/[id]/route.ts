@@ -1,40 +1,43 @@
+import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
 import { requireAuth } from "@/lib/auth-utils"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const result = await client.query(
-      "SELECT id, name, email, phone, location, role, \"createdAt\" FROM users WHERE id = $1",
-      [params.id]
-    )
+    const user = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        role: true,
+        createdAt: true,
+      },
+    })
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    return NextResponse.json({ user: result.rows[0] }, { status: 200 })
+    return NextResponse.json({ user }, { status: 200 })
   } catch (error) {
     console.error("Get user error:", error)
     return NextResponse.json(
       { error: "Failed to fetch user" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }
 
@@ -42,7 +45,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
@@ -59,17 +61,25 @@ export async function PUT(
 
     const { name, phone, location } = await request.json()
 
-    const result = await client.query(
-      'UPDATE users SET name = $1, phone = $2, location = $3, "updatedAt" = NOW() WHERE id = $4 RETURNING id, name, email, phone, location, role',
-      [name || null, phone || null, location || null, params.id]
-    )
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
+    const user = await prisma.user.update({
+      where: { id: params.id },
+      data: {
+        name: name || undefined,
+        phone: phone || undefined,
+        location: location || undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        location: true,
+        role: true,
+      },
+    })
 
     return NextResponse.json(
-      { message: "User profile updated successfully", user: result.rows[0] },
+      { message: "User profile updated successfully", user },
       { status: 200 }
     )
   } catch (error) {
@@ -78,7 +88,5 @@ export async function PUT(
       { error: "Failed to update user" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }

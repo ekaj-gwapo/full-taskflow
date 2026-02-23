@@ -1,16 +1,13 @@
+import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
 import { requireAuth } from "@/lib/auth-utils"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string; stepId: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
@@ -20,16 +17,13 @@ export async function PUT(
     const { completed } = await request.json()
 
     // Verify task and step exist
-    const taskResult = await client.query(
-      "SELECT * FROM tasks WHERE id = $1",
-      [params.id]
-    )
+    const task = await prisma.task.findUnique({
+      where: { id: params.id },
+    })
 
-    if (taskResult.rows.length === 0) {
+    if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
-
-    const task = taskResult.rows[0]
 
     // Employee can only update steps for their own tasks
     if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
@@ -39,17 +33,18 @@ export async function PUT(
       )
     }
 
-    const result = await client.query(
-      'UPDATE action_steps SET completed = $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *',
-      [completed || false, params.stepId]
-    )
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: "Action step not found" }, { status: 404 })
-    }
+    const actionStep = await prisma.actionStep.update({
+      where: { id: params.stepId },
+      data: {
+        completed: typeof completed === "boolean" ? completed : undefined,
+      },
+      include: {
+        notes: true,
+      },
+    })
 
     return NextResponse.json(
-      { message: "Action step updated successfully", actionStep: result.rows[0] },
+      { message: "Action step updated successfully", actionStep },
       { status: 200 }
     )
   } catch (error) {
@@ -58,8 +53,6 @@ export async function PUT(
       { error: "Failed to update action step" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }
 
@@ -67,7 +60,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; stepId: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
@@ -75,16 +67,13 @@ export async function DELETE(
     }
 
     // Verify task exists
-    const taskResult = await client.query(
-      "SELECT * FROM tasks WHERE id = $1",
-      [params.id]
-    )
+    const task = await prisma.task.findUnique({
+      where: { id: params.id },
+    })
 
-    if (taskResult.rows.length === 0) {
+    if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
-
-    const task = taskResult.rows[0]
 
     // Employee can only delete steps from their own tasks
     if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
@@ -94,10 +83,9 @@ export async function DELETE(
       )
     }
 
-    await client.query(
-      "DELETE FROM action_steps WHERE id = $1",
-      [params.stepId]
-    )
+    await prisma.actionStep.delete({
+      where: { id: params.stepId },
+    })
 
     return NextResponse.json(
       { message: "Action step deleted successfully" },
@@ -109,7 +97,5 @@ export async function DELETE(
       { error: "Failed to delete action step" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }

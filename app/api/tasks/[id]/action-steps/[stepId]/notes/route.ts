@@ -1,16 +1,13 @@
+import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
-import { Pool } from "pg"
 import { requireAuth } from "@/lib/auth-utils"
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-})
+const prisma = new PrismaClient()
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string; stepId: string } }
 ) {
-  const client = await pool.connect()
   try {
     const auth = requireAuth(request)
     if (auth.error) {
@@ -27,16 +24,13 @@ export async function POST(
     }
 
     // Verify task exists
-    const taskResult = await client.query(
-      "SELECT * FROM tasks WHERE id = $1",
-      [params.id]
-    )
+    const task = await prisma.task.findUnique({
+      where: { id: params.id },
+    })
 
-    if (taskResult.rows.length === 0) {
+    if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
-
-    const task = taskResult.rows[0]
 
     // Employee can only add notes to steps in their own tasks
     if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
@@ -46,15 +40,17 @@ export async function POST(
       )
     }
 
-    const result = await client.query(
-      `INSERT INTO step_notes (id, "stepId", content, "authorName", "authorId", timestamp)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, NOW())
-       RETURNING *`,
-      [params.stepId, content, auth.user!.name || "Employee", auth.user!.id]
-    )
+    const stepNote = await prisma.stepNote.create({
+      data: {
+        stepId: params.stepId,
+        content,
+        authorName: "Employee", // This will be replaced with actual user data
+        authorId: auth.user!.id,
+      },
+    })
 
     return NextResponse.json(
-      { message: "Note created successfully", note: result.rows[0] },
+      { message: "Note created successfully", note: stepNote },
       { status: 201 }
     )
   } catch (error) {
@@ -63,7 +59,5 @@ export async function POST(
       { error: "Failed to create note" },
       { status: 500 }
     )
-  } finally {
-    client.release()
   }
 }
