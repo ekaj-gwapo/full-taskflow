@@ -1,11 +1,16 @@
-import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import jwt from "jsonwebtoken"
 import { NextRequest, NextResponse } from "next/server"
+import { Pool } from "pg"
 
-const prisma = new PrismaClient()
+// Create a connection pool for Neon
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
 
 export async function POST(request: NextRequest) {
+  const client = await pool.connect()
+  
   try {
     const { name, email, password } = await request.json()
 
@@ -25,11 +30,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const existingUserResult = await client.query(
+      "SELECT id FROM neon_auth.user WHERE email = $1",
+      [email]
+    )
 
-    if (existingUser) {
+    if (existingUserResult.rows.length > 0) {
       return NextResponse.json(
         { error: "Email already registered" },
         { status: 400 }
@@ -39,15 +45,15 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    // Create user (default role is EMPLOYEE)
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: "EMPLOYEE",
-      },
-    })
+    // Create user
+    const createUserResult = await client.query(
+      `INSERT INTO neon_auth.user (name, email, role, emailVerified, createdAt, updatedAt)
+       VALUES ($1, $2, $3, $4, NOW(), NOW())
+       RETURNING id, name, email, role`,
+      [name, email, "user", false]
+    )
+
+    const user = createUserResult.rows[0]
 
     // Generate JWT token
     const token = jwt.sign(
@@ -75,5 +81,7 @@ export async function POST(request: NextRequest) {
       { error: "Failed to register user" },
       { status: 500 }
     )
+  } finally {
+    client.release()
   }
 }
