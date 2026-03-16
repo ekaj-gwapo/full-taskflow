@@ -89,10 +89,11 @@ export function AdminDashboard() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
+      const status = t.status?.toLowerCase()
       const matchesEmployee =
         selectedEmployeeId === null || t.assigneeId === selectedEmployeeId
       const matchesStatus =
-        filterStatus === "all" || t.status === filterStatus
+        filterStatus === "all" || status === filterStatus
       const matchesSearch =
         searchQuery === "" ||
         t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -187,13 +188,13 @@ export function AdminDashboard() {
                 All ({employeeTasks.length})
               </TabsTrigger>
               <TabsTrigger value="todo" className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground">
-                To Do ({employeeTasks.filter((t) => t.status === "todo").length})
+                To Do ({employeeTasks.filter((t) => t.status?.toLowerCase() === "todo").length})
               </TabsTrigger>
               <TabsTrigger value="in-progress" className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground">
-                In Progress ({employeeTasks.filter((t) => t.status === "in-progress").length})
+                In Progress ({employeeTasks.filter((t) => t.status?.toLowerCase() === "in-progress").length})
               </TabsTrigger>
               <TabsTrigger value="completed" className="text-xs data-[state=active]:bg-background data-[state=active]:text-foreground">
-                Completed ({employeeTasks.filter((t) => t.status === "completed").length})
+                Completed ({employeeTasks.filter((t) => t.status?.toLowerCase() === "completed").length})
               </TabsTrigger>
             </TabsList>
 

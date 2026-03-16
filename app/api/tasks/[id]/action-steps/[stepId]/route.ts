@@ -71,10 +71,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    // Employee can only delete steps from their own tasks
-    if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
+    // Only ADMIN or SUPERADMIN can delete steps
+    const role = auth.user!.role?.toUpperCase();
+    if (role !== "ADMIN" && role !== "SUPERADMIN") {
       return NextResponse.json(
-        { error: "Access denied" },
+        { error: "Only administrators can delete action steps" },
         { status: 403 }
       )
     }

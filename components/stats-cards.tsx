@@ -14,11 +14,11 @@ export function StatsCards({ tasks: tasksProp }: StatsCardsProps) {
   const tasks = tasksProp ?? ctx.tasks
 
   const now = new Date()
-  const todo = tasks.filter((t) => t.status === "todo").length
-  const inProgress = tasks.filter((t) => t.status === "in-progress").length
-  const completed = tasks.filter((t) => t.status === "completed").length
+  const todo = tasks.filter((t) => t.status?.toLowerCase() === "todo").length
+  const inProgress = tasks.filter((t) => t.status?.toLowerCase() === "in-progress").length
+  const completed = tasks.filter((t) => t.status?.toLowerCase() === "completed").length
   const overdue = tasks.filter(
-    (t) => t.status !== "completed" && new Date(t.dueDate) < now
+    (t) => t.status?.toLowerCase() !== "completed" && new Date(t.dueDate) < now
   ).length
 
   const stats = [

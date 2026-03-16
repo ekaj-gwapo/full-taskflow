@@ -78,8 +78,8 @@ export function ActionStepsSection({
         </div>
       )}
 
-      {/* Add new step - Only for employees */}
-      {userRole !== "admin" && (
+      {/* Add new step - Only for admins/superadmins */}
+      {(userRole === "admin" || userRole === "superadmin") && (
         <div className="flex gap-2">
           <input
             type="text"
@@ -114,14 +114,14 @@ export function ActionStepsSection({
             <div key={step.id} className="border border-border rounded-lg overflow-hidden bg-secondary/30">
               {/* Step header */}
               <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-secondary/50 transition-colors">
-                {userRole !== "admin" && (
+                {userRole === "employee" && (
                   <Checkbox
                     checked={step.completed}
-                    onChange={(e) => onUpdateStepStatus(step.id, e.target.checked)}
+                    onCheckedChange={(checked) => onUpdateStepStatus(step.id, checked === true)}
                     className="h-4 w-4"
                   />
                 )}
-                {userRole === "admin" && (
+                {userRole !== "employee" && (
                   <div
                     className={`h-4 w-4 rounded border border-border flex items-center justify-center ${
                       step.completed ? "bg-primary" : "bg-secondary"
@@ -154,7 +154,7 @@ export function ActionStepsSection({
                     }`}
                   />
                 </button>
-                {userRole === "admin" && (
+                {(userRole === "admin" || userRole === "superadmin") && (
                   <Button
                     variant="ghost"
                     size="sm"

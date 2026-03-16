@@ -15,7 +15,7 @@ function NoteReminder({ task }: { task: Task }) {
   const [minutes, setMinutes] = useState(0)
 
   useEffect(() => {
-    if (task.status !== "in-progress") return
+    if (task.status?.toLowerCase() !== "in-progress") return
 
     const lastNote = task.progressNotes[task.progressNotes.length - 1]
     if (lastNote) {
@@ -36,7 +36,7 @@ function NoteReminder({ task }: { task: Task }) {
     return () => clearInterval(interval)
   }, [task.status, task.progressNotes])
 
-  if (task.status !== "in-progress") return null
+  if (task.status?.toLowerCase() !== "in-progress") return null
 
   const isOverdue = minutes >= 30
   const progress = Math.min((minutes / 30) * 100, 100)
@@ -75,7 +75,7 @@ function EmployeeTaskCard({
   isSelected: boolean
 }) {
   const isOverdue =
-    task.status !== "completed" && new Date(task.dueDate) < new Date()
+    task.status?.toLowerCase() !== "completed" && new Date(task.dueDate) < new Date()
 
   return (
     <button
@@ -144,14 +144,14 @@ export function EmployeeDashboard() {
 
   const filteredTasks = useMemo(() => {
     if (filterStatus === "all") return myTasks
-    return myTasks.filter((t) => t.status === filterStatus)
+    return myTasks.filter((t) => t.status?.toLowerCase() === filterStatus)
   }, [myTasks, filterStatus])
 
-  const todo = myTasks.filter((t) => t.status === "todo").length
-  const inProgress = myTasks.filter((t) => t.status === "in-progress").length
-  const completed = myTasks.filter((t) => t.status === "completed").length
+  const todo = myTasks.filter((t) => t.status?.toLowerCase() === "todo").length
+  const inProgress = myTasks.filter((t) => t.status?.toLowerCase() === "in-progress").length
+  const completed = myTasks.filter((t) => t.status?.toLowerCase() === "completed").length
   const overdue = myTasks.filter(
-    (t) => t.status !== "completed" && new Date(t.dueDate) < new Date()
+    (t) => t.status?.toLowerCase() !== "completed" && new Date(t.dueDate) < new Date()
   ).length
 
   const stats = [

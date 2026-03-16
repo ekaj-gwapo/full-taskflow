@@ -29,10 +29,11 @@ export async function POST(
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    // Employee can only add steps to their own tasks
-    if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
+    // Only ADMIN or SUPERADMIN can add steps
+    const role = auth.user!.role?.toUpperCase();
+    if (role !== "ADMIN" && role !== "SUPERADMIN") {
       return NextResponse.json(
-        { error: "Access denied" },
+        { error: "Only administrators can add action steps" },
         { status: 403 }
       )
     }
