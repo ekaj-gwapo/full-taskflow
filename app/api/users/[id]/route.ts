@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
 
 export async function GET(
   request: NextRequest,
@@ -14,18 +12,11 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: params.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        location: true,
-        role: true,
-        createdAt: true,
-      },
-    })
+    const user = db.prepare(`
+      SELECT id, name, email, phone, role, createdAt 
+      FROM users 
+      WHERE id = ?
+    `).get(params.id);
 
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
@@ -59,24 +50,21 @@ export async function PUT(
       )
     }
 
-    const { name, phone, location } = await request.json()
+    const { name, phone } = await request.json()
 
-    const user = await prisma.user.update({
-      where: { id: params.id },
-      data: {
-        name: name || undefined,
-        phone: phone || undefined,
-        location: location || undefined,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        location: true,
-        role: true,
-      },
-    })
+    db.prepare(`
+      UPDATE users 
+      SET name = COALESCE(?, name), 
+          phone = COALESCE(?, phone),
+          updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(name, phone, params.id);
+
+    const user = db.prepare(`
+      SELECT id, name, email, phone, role 
+      FROM users 
+      WHERE id = ?
+    `).get(params.id);
 
     return NextResponse.json(
       { message: "User profile updated successfully", user },

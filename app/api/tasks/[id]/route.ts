@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth, requireAdmin } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
 
 export async function GET(
   request: NextRequest,
@@ -14,19 +12,15 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
-      include: {
-        assignee: true,
-        createdBy: true,
-        actionSteps: {
-          include: {
-            notes: true,
-          },
-        },
-        progressNotes: true,
-      },
-    })
+    const task: any = db.prepare(`
+        SELECT t.*, 
+               u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
+               u2.name as creatorName, u2.email as creatorEmail, u2.role as creatorRole
+        FROM tasks t
+        LEFT JOIN users u1 ON t.assigneeId = u1.id
+        LEFT JOIN users u2 ON t.createdById = u2.id
+        WHERE t.id = ?
+      `).get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -40,7 +34,18 @@ export async function GET(
       )
     }
 
-    return NextResponse.json({ task }, { status: 200 })
+    const formattedTask = {
+      ...task,
+      assignee: task.assigneeId ? { id: task.assigneeId, name: task.assigneeName, email: task.assigneeEmail, role: task.assigneeRole } : null,
+      createdBy: task.createdById ? { id: task.createdById, name: task.creatorName, email: task.creatorEmail, role: task.creatorRole } : null,
+      actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(params.id).map((as: any) => ({
+        ...as,
+        notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(as.id)
+      })),
+      progressNotes: db.prepare("SELECT * FROM progress_notes WHERE taskId = ?").all(params.id)
+    };
+
+    return NextResponse.json({ task: formattedTask }, { status: 200 })
   } catch (error) {
     console.error("Get task error:", error)
     return NextResponse.json(
@@ -61,28 +66,40 @@ export async function PUT(
     }
 
     const { status, priority } = await request.json()
+    const completedAt = status === "COMPLETED" ? new Date().toISOString() : null;
 
-    const task = await prisma.task.update({
-      where: { id: params.id },
-      data: {
-        status: status || undefined,
-        priority: priority || undefined,
-        completedAt: status === "COMPLETED" ? new Date() : null,
-      },
-      include: {
-        assignee: true,
-        createdBy: true,
-        actionSteps: {
-          include: {
-            notes: true,
-          },
-        },
-        progressNotes: true,
-      },
-    })
+    db.prepare(`
+      UPDATE tasks 
+      SET status = COALESCE(?, status), 
+          priority = COALESCE(?, priority),
+          updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(status, priority, params.id);
+
+    // Fetch updated task
+    const task: any = db.prepare(`
+        SELECT t.*, 
+               u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
+               u2.name as creatorName, u2.email as creatorEmail, u2.role as creatorRole
+        FROM tasks t
+        LEFT JOIN users u1 ON t.assigneeId = u1.id
+        LEFT JOIN users u2 ON t.createdById = u2.id
+        WHERE t.id = ?
+      `).get(params.id);
+
+    const formattedTask = {
+      ...task,
+      assignee: task.assigneeId ? { id: task.assigneeId, name: task.assigneeName, email: task.assigneeEmail, role: task.assigneeRole } : null,
+      createdBy: task.createdById ? { id: task.createdById, name: task.creatorName, email: task.creatorEmail, role: task.creatorRole } : null,
+      actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(params.id).map((as: any) => ({
+        ...as,
+        notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(as.id)
+      })),
+      progressNotes: db.prepare("SELECT * FROM progress_notes WHERE taskId = ?").all(params.id)
+    };
 
     return NextResponse.json(
-      { message: "Task updated successfully", task },
+      { message: "Task updated successfully", task: formattedTask },
       { status: 200 }
     )
   } catch (error) {
@@ -104,9 +121,7 @@ export async function DELETE(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    await prisma.task.delete({
-      where: { id: params.id },
-    })
+    db.prepare("DELETE FROM tasks WHERE id = ?").run(params.id);
 
     return NextResponse.json(
       { message: "Task deleted successfully" },

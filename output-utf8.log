@@ -1,0 +1,95 @@
+﻿node.exe : C:\Users\Len
+ovo\Desktop\full-taskfl
+ow\node_modules\@prisma
+\client\src\runtime\get
+PrismaClient.ts:260
+At C:\nvm4w\nodejs\npx.
+ps1:29 char:3
++   & $NODE_EXE 
+$NPX_CLI_JS $args
++   ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (C:\Users\Leno   
+ vo...maClient.ts:2    
+60:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+        throw new Prism
+aClientInitializationEr
+ror(
+              ^
+
+
+PrismaClientInitializat
+ionError: 
+`PrismaClient` needs 
+to be constructed with 
+a non-empty, valid 
+`PrismaClientOptions`:
+
+```
+new PrismaClient({
+  ...
+})
+```
+
+or
+
+```
+constructor() {
+  super({ ... });
+}
+```
+          
+    at new t (C:\Users\
+Lenovo\Desktop\full-tas
+kflow\node_modules\@pri
+sma\client\src\runtime\
+getPrismaClient.ts:260:
+15)
+    at bcrypt (C:\Users
+\Lenovo\Desktop\full-ta
+skflow\verify-db.ts:4:1
+6)
+    at 
+Object.<anonymous> (C:\
+Users\Lenovo\Desktop\fu
+ll-taskflow\verify-db.t
+s:50:6)
+    at Module._compile 
+(node:internal/modules/
+cjs/loader:1565:14)
+    at 
+Object.transformer (C:\
+Users\Lenovo\AppData\Lo
+cal\npm-cache\_npx\fd45
+a72a545557e9\node_modul
+es\tsx\dist\register-D4
+6fvsV_.cjs:3:1104)
+    at Module.load (nod
+e:internal/modules/cjs/
+loader:1318:32)
+    at Function._load (
+node:internal/modules/c
+js/loader:1128:12)
+    at TracingChannel.t
+raceSync (node:diagnost
+ics_channel:322:14)
+    at wrapModuleLoad (
+node:internal/modules/c
+js/loader:219:24)
+    at cjsLoader (node:
+internal/modules/esm/tr
+anslators:263:5) {
+  clientVersion: 
+'7.4.1',
+  errorCode: undefined,
+  retryable: undefined
+}
+
+Node.js v22.12.0

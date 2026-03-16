@@ -10,11 +10,9 @@ import {
   type ProgressNote,
   type ActionStep,
   type WeeklyReport,
-  adminUser,
-  employees,
-  initialTasks,
   initialReports,
 } from "./store"
+import { useEffect } from "react"
 
 interface TaskContextType {
   // Auth
@@ -59,12 +57,12 @@ const TaskContext = createContext<TaskContextType | null>(null)
 export function TaskProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [currentRole, setCurrentRole] = useState<UserRole | null>(null)
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
-  const [reports, setReports] = useState<WeeklyReport[]>(initialReports)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [reports, setReports] = useState<WeeklyReport[]>([])
+  const [allEmployees, setAllEmployees] = useState<User[]>([])
 
   const login = useCallback((role: UserRole, userId?: string, userData?: any) => {
     if (userData) {
-      // Login with real user data from API
       const user: User = {
         id: userData.id,
         name: userData.name,
@@ -75,15 +73,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
       }
       setCurrentUser(user)
       setCurrentRole(userData.role.toLowerCase() as UserRole)
-    } else if (role === "admin") {
-      // Demo admin login
-      setCurrentUser(adminUser)
-      setCurrentRole("admin")
-    } else {
-      // Demo employee login
-      const emp = employees.find((e) => e.id === userId) || employees[0]
-      setCurrentUser(emp)
-      setCurrentRole("employee")
+      // Save token or handle session if needed
     }
   }, [])
 
@@ -94,21 +84,30 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const createTask = useCallback(
-    (taskData: Omit<Task, "id" | "createdAt" | "completedAt" | "progressNotes">, actionSteps?: string[]) => {
-      const newTask: Task = {
-        ...taskData,
-        id: `task-${Date.now()}`,
-        createdAt: new Date().toISOString().split("T")[0],
-        completedAt: null,
-        progressNotes: [],
-        actionSteps: (actionSteps || []).map((title, index) => ({
-          id: `step-${Date.now()}-${index}`,
-          title,
-          completed: false,
-          notes: [],
-        })),
+    async (taskData: Omit<Task, "id" | "createdAt" | "completedAt" | "progressNotes">, actionSteps?: string[]) => {
+      try {
+        const token = localStorage.getItem("token")
+        const response = await fetch("/api/tasks", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            ...taskData,
+            actionSteps,
+          }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to create task")
+        }
+
+        const data = await response.json()
+        setTasks((prev) => [data.task, ...prev])
+      } catch (error) {
+        console.error("Create task error:", error)
       }
-      setTasks((prev) => [newTask, ...prev])
     },
     []
   )
@@ -130,9 +129,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
                 completedAt:
                   status === "completed"
                     ? new Date().toISOString()
-                    : status !== "completed"
-                      ? null
-                      : t.completedAt,
+                    : null,
               }
             : t
         )
@@ -352,6 +349,38 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   }, [tasks, currentRole, currentUser])
 
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) return;
+      
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        // Fetch Tasks
+        const tasksRes = await fetch('/api/tasks', { headers });
+        if (tasksRes.ok) {
+          const data = await tasksRes.json();
+          setTasks(data.tasks || []);
+        }
+
+        // Fetch Employees (for Admin/SuperAdmin)
+        if (currentRole === 'admin' || currentRole === 'superadmin') {
+          const usersRes = await fetch('/api/users', { headers });
+          if (usersRes.ok) {
+            const data = await usersRes.json();
+            setAllEmployees(data.users.filter((u: any) => u.role.toLowerCase() === 'employee'));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      }
+    };
+
+    fetchData();
+  }, [currentUser, currentRole]);
+
   return (
     <TaskContext.Provider
       value={{
@@ -370,7 +399,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         addStepNote,
         reports,
         createReport,
-        allEmployees: employees,
+        allEmployees,
         getEmployeeVisibleTasks,
         canAccessTask,
         getEmployeeActionSummary,

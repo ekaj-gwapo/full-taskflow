@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Users, ChevronRight, ClipboardList, ArrowLeft, User, Mail, Phone, MapPin, Save, X } from "lucide-react"
+import { Users, ChevronRight, ClipboardList, ArrowLeft, User, Mail, Phone, MapPin, Save, X, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface AdminSidebarProps {
@@ -112,6 +112,19 @@ export function AdminSidebar({
           <span>Profile</span>
         </button>
       </div>
+
+      {currentUser?.role?.toLowerCase() === "superadmin" && (
+        <div className="px-3 py-2 border-b border-border">
+          <Button 
+            variant="ghost" 
+            className="w-full justify-start gap-2 text-primary hover:text-primary hover:bg-primary/10"
+            onClick={() => window.location.href = "/"}
+          >
+            <Shield className="h-4 w-4" />
+            User Management
+          </Button>
+        </div>
+      )}
 
       {/* Content - Scrollable */}
       <ScrollArea className="flex-1">

@@ -4,6 +4,7 @@ import { NextRequest } from "next/server"
 export interface JWTPayload {
   id: string
   email: string
+  name: string
   role: string
 }
 
@@ -45,6 +46,14 @@ export function requireAdmin(request: NextRequest) {
   const auth = requireAuth(request)
   if (auth.error || auth.user?.role !== "ADMIN") {
     return { error: "Admin access required", status: 403, user: null }
+  }
+  return auth
+}
+
+export function requireSuperAdmin(request: NextRequest) {
+  const auth = requireAuth(request)
+  if (auth.error || auth.user?.role !== "SUPERADMIN") {
+    return { error: "Super Admin access required", status: 403, user: null }
   }
   return auth
 }

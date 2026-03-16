@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth, requireAdmin } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
+import { v4 as uuidv4 } from "uuid"
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,41 +12,43 @@ export async function GET(request: NextRequest) {
 
     const user = auth.user!
 
-    let tasks
+    let tasks: any[]
     if (user.role === "ADMIN") {
-      // Admin sees all tasks
-      tasks = await prisma.task.findMany({
-        include: {
-          assignee: true,
-          createdBy: true,
-          actionSteps: {
-            include: {
-              notes: true,
-            },
-          },
-          progressNotes: true,
-        },
-        orderBy: { createdAt: "desc" },
-      })
+      tasks = db.prepare(`
+        SELECT t.*, 
+               u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
+               u2.name as creatorName, u2.email as creatorEmail, u2.role as creatorRole
+        FROM tasks t
+        LEFT JOIN users u1 ON t.assigneeId = u1.id
+        LEFT JOIN users u2 ON t.createdById = u2.id
+        ORDER BY t.createdAt DESC
+      `).all();
     } else {
-      // Employee sees only their assigned tasks
-      tasks = await prisma.task.findMany({
-        where: { assigneeId: user.id },
-        include: {
-          assignee: true,
-          createdBy: true,
-          actionSteps: {
-            include: {
-              notes: true,
-            },
-          },
-          progressNotes: true,
-        },
-        orderBy: { createdAt: "desc" },
-      })
+      tasks = db.prepare(`
+        SELECT t.*, 
+               u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
+               u2.name as creatorName, u2.email as creatorEmail, u2.role as creatorRole
+        FROM tasks t
+        LEFT JOIN users u1 ON t.assigneeId = u1.id
+        LEFT JOIN users u2 ON t.createdById = u2.id
+        WHERE t.assigneeId = ?
+        ORDER BY t.createdAt DESC
+      `).all(user.id);
     }
 
-    return NextResponse.json({ tasks }, { status: 200 })
+    // Format tasks to match expected structure
+    const formattedTasks = tasks.map(t => ({
+      ...t,
+      assignee: t.assigneeId ? { id: t.assigneeId, name: t.assigneeName, email: t.assigneeEmail, role: t.assigneeRole } : null,
+      createdBy: t.createdById ? { id: t.createdById, name: t.creatorName, email: t.creatorEmail, role: t.creatorRole } : null,
+      actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(t.id).map((as: any) => ({
+        ...as,
+        notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(as.id)
+      })),
+      progressNotes: db.prepare("SELECT * FROM progress_notes WHERE taskId = ?").all(t.id)
+    }));
+
+    return NextResponse.json({ tasks: formattedTasks }, { status: 200 })
   } catch (error) {
     console.error("Get tasks error:", error)
     return NextResponse.json(
@@ -58,6 +59,28 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const transaction = db.transaction((data: any) => {
+    const { title, description, priority, dueDate, assigneeId, actionSteps, createdById } = data;
+    const taskId = uuidv4();
+    
+    db.prepare(`
+      INSERT INTO tasks (id, title, description, priority, dueDate, assigneeId, createdById)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(taskId, title, description, priority || "MEDIUM", dueDate, assigneeId, createdById);
+
+    if (actionSteps && actionSteps.length > 0) {
+      const insertStep = db.prepare(`
+        INSERT INTO action_steps (id, title, taskId)
+        VALUES (?, ?, ?)
+      `);
+      for (const stepTitle of actionSteps) {
+        insertStep.run(uuidv4(), stepTitle, taskId);
+      }
+    }
+
+    return taskId;
+  });
+
   try {
     const auth = requireAdmin(request)
     if (auth.error) {
@@ -74,36 +97,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const task = await prisma.task.create({
-      data: {
-        title,
-        description,
-        priority: priority || "MEDIUM",
-        dueDate: new Date(dueDate),
-        assigneeId,
-        createdById: auth.user!.id,
-        actionSteps: actionSteps
-          ? {
-              create: actionSteps.map((step: string) => ({
-                title: step,
-              })),
-            }
-          : undefined,
-      },
-      include: {
-        assignee: true,
-        createdBy: true,
-        actionSteps: {
-          include: {
-            notes: true,
-          },
-        },
-        progressNotes: true,
-      },
-    })
+    const taskId = transaction({
+      title,
+      description,
+      priority,
+      dueDate: new Date(dueDate).toISOString(),
+      assigneeId,
+      createdById: auth.user!.id,
+      actionSteps
+    });
+
+    // Fetch the created task to return it
+    const task: any = db.prepare(`
+        SELECT t.*, 
+               u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
+               u2.name as creatorName, u2.email as creatorEmail, u2.role as creatorRole
+        FROM tasks t
+        LEFT JOIN users u1 ON t.assigneeId = u1.id
+        LEFT JOIN users u2 ON t.createdById = u2.id
+        WHERE t.id = ?
+      `).get(taskId);
+
+    const formattedTask = {
+      ...task,
+      assignee: task.assigneeId ? { id: task.assigneeId, name: task.assigneeName, email: task.assigneeEmail, role: task.assigneeRole } : null,
+      createdBy: task.createdById ? { id: task.createdById, name: task.creatorName, email: task.creatorEmail, role: task.creatorRole } : null,
+      actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(taskId).map((as: any) => ({
+        ...as,
+        notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(as.id)
+      })),
+      progressNotes: []
+    };
 
     return NextResponse.json(
-      { message: "Task created successfully", task },
+      { message: "Task created successfully", task: formattedTask },
       { status: 201 }
     )
   } catch (error) {

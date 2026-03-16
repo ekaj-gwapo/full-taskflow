@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
+import { v4 as uuidv4 } from "uuid"
 
 export async function POST(
   request: NextRequest,
@@ -24,9 +23,7 @@ export async function POST(
     }
 
     // Verify task exists
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
-    })
+    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -40,23 +37,22 @@ export async function POST(
       )
     }
 
-    const stepNote = await prisma.stepNote.create({
-      data: {
-        stepId: params.stepId,
-        content,
-        authorName: "Employee", // This will be replaced with actual user data
-        authorId: auth.user!.id,
-      },
-    })
+    const noteId = uuidv4();
+    db.prepare(`
+      INSERT INTO step_notes (id, content, stepId, authorId, authorName)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(noteId, content, params.stepId, auth.user!.id, auth.user!.name);
+
+    const stepNote = db.prepare("SELECT * FROM step_notes WHERE id = ?").get(noteId);
 
     return NextResponse.json(
       { message: "Note created successfully", note: stepNote },
       { status: 201 }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create step note error:", error)
     return NextResponse.json(
-      { error: "Failed to create note" },
+      { error: "Failed to create note", details: error.message },
       { status: 500 }
     )
   }

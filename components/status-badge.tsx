@@ -25,8 +25,10 @@ const statusConfig: Record<
   },
 }
 
-export function StatusBadge({ status }: { status: TaskStatus }) {
-  const config = statusConfig[status]
+export function StatusBadge({ status }: { status: string }) {
+  const normalizedStatus = status?.toLowerCase() as TaskStatus
+  const config = statusConfig[normalizedStatus] || statusConfig.todo
+  
   return (
     <span
       className={cn(

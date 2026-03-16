@@ -1,44 +1,52 @@
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { NextRequest, NextResponse } from "next/server";
+import db from "@/lib/db";
+import { v4 as uuidv4 } from "uuid";
+
+const JWT_SECRET = process.env.JWT_SECRET || "default_secret";
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password } = await request.json();
+    const { name, email, password, role, phone } = await request.json();
 
-    if (!name || !email || !password) {
-      return NextResponse.json({ error: "All fields required" }, { status: 400 });
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    // Check if user exists
+    const existingUser = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
 
     if (existingUser) {
-      return NextResponse.json({ error: "Email already exists" }, { status: 400 });
+      return NextResponse.json(
+        { error: "User already exists" },
+        { status: 400 }
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = uuidv4();
 
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: "EMPLOYEE",
-      },
-    });
+    // Insert user
+    db.prepare(`
+      INSERT INTO users (id, name, email, password, role, phone)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(userId, name, email, hashedPassword, role || "EMPLOYEE", phone);
+
+    const user: any = db.prepare("SELECT id, name, email, role, phone FROM users WHERE id = ?").get(userId);
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { id: user.id, email: user.email, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1d" }
     );
 
     return NextResponse.json({ user, token }, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("REGISTER ERROR:", error);
-    return NextResponse.json({ error: "Failed to register" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to register", details: error.message }, { status: 500 });
   }
 }

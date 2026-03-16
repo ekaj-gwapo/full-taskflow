@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  
 }
 
 model User {
@@ -22,11 +21,11 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  assignedTasks     Task[]       @relation("assignedTasks")
-  createdTasks      Task[]       @relation("createdTasks")
-  stepNotes         StepNote[]
-  progressNotes     ProgressNote[]
-  weeklyReports     WeeklyReport[]
+  assignedTasks Task[]         @relation("assignedTasks")
+  createdTasks  Task[]         @relation("createdTasks")
+  stepNotes     StepNote[]
+  progressNotes ProgressNote[]
+  weeklyReports WeeklyReport[]
 
   @@map("users")
 }
@@ -37,7 +36,7 @@ enum Role {
 }
 
 model Task {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
   description String?
   status      TaskStatus @default(TODO)
@@ -45,14 +44,14 @@ model Task {
   dueDate     DateTime
   assigneeId  String
   createdById String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
   completedAt DateTime?
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime   @updatedAt
 
   // Relations
-  assignee    User @relation("assignedTasks", fields: [assigneeId], references: [id], onDelete: Cascade)
-  createdBy   User @relation("createdTasks", fields: [createdById], references: [id], onDelete: Cascade)
-  actionSteps ActionStep[]
+  assignee      User           @relation("assignedTasks", fields: [assigneeId], references: [id], onDelete: Cascade)
+  createdBy     User           @relation("createdTasks", fields: [createdById], references: [id], onDelete: Cascade)
+  actionSteps   ActionStep[]
   progressNotes ProgressNote[]
 
   @@map("tasks")
@@ -79,56 +78,56 @@ model ActionStep {
   updatedAt DateTime @updatedAt
 
   // Relations
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  notes     StepNote[]
+  task  Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  notes StepNote[]
 
   @@map("action_steps")
 }
 
 model StepNote {
-  id        String   @id @default(cuid())
-  stepId    String
-  content   String
+  id         String   @id @default(cuid())
+  stepId     String
+  content    String
   authorName String
-  authorId  String
-  timestamp DateTime @default(now())
+  authorId   String
+  timestamp  DateTime @default(now())
 
   // Relations
-  step      ActionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  step   ActionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  author User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@map("step_notes")
 }
 
 model ProgressNote {
-  id        String   @id @default(cuid())
-  taskId    String
-  content   String
+  id         String   @id @default(cuid())
+  taskId     String
+  content    String
   authorName String
-  authorId  String
-  timestamp DateTime @default(now())
+  authorId   String
+  timestamp  DateTime @default(now())
 
   // Relations
-  task      Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author    User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@map("progress_notes")
 }
 
 model WeeklyReport {
-  id               String   @id @default(cuid())
-  employeeId       String
-  weekStart        DateTime
-  weekEnd          DateTime
-  summary          String
-  completedCount   Int      @default(0)
-  inProgressCount  Int      @default(0)
-  overdueCount     Int      @default(0)
-  todoCount        Int      @default(0)
-  createdAt        DateTime @default(now())
+  id              String   @id @default(cuid())
+  employeeId      String
+  weekStart       DateTime
+  weekEnd         DateTime
+  summary         String
+  completedCount  Int      @default(0)
+  inProgressCount Int      @default(0)
+  overdueCount    Int      @default(0)
+  todoCount       Int      @default(0)
+  createdAt       DateTime @default(now())
 
   // Relations
-  employee         User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@map("weekly_reports")
 }

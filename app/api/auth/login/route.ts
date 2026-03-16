@@ -1,39 +1,51 @@
-import { prisma } from "@/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { NextRequest, NextResponse } from "next/server";
+import db from "@/lib/db";
+
+const JWT_SECRET = process.env.JWT_SECRET || "default_secret";
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json();
 
     if (!email || !password) {
-      return NextResponse.json({ error: "All fields required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Email and password are required" },
+        { status: 400 }
+      );
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
+    const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
 
     if (!user) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 }
+      );
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isMatch) {
-      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    if (!isPasswordValid) {
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 }
+      );
     }
+
+    // Remove password from user object
+    const { password: _, ...userWithoutPassword } = user;
 
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: "7d" }
+      { id: user.id, email: user.email, name: user.name, role: user.role },
+      JWT_SECRET,
+      { expiresIn: "1d" }
     );
 
-    return NextResponse.json({ user, token });
-  } catch (error) {
+    return NextResponse.json({ user: userWithoutPassword, token });
+  } catch (error: any) {
     console.error("LOGIN ERROR:", error);
-    return NextResponse.json({ error: "Failed to login" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to login", details: error.message }, { status: 500 });
   }
 }

@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
+import { v4 as uuidv4 } from "uuid"
 
 export async function POST(
   request: NextRequest,
@@ -24,9 +23,7 @@ export async function POST(
     }
 
     // Verify task exists and user can access it
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
-    })
+    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -40,24 +37,25 @@ export async function POST(
       )
     }
 
-    const actionStep = await prisma.actionStep.create({
-      data: {
-        taskId: params.id,
-        title,
-      },
-      include: {
-        notes: true,
-      },
-    })
+    const stepId = uuidv4();
+    db.prepare(`
+      INSERT INTO action_steps (id, title, taskId)
+      VALUES (?, ?, ?)
+    `).run(stepId, title, params.id);
+
+    const actionStep = {
+      ...db.prepare("SELECT * FROM action_steps WHERE id = ?").get(stepId) as any,
+      notes: []
+    };
 
     return NextResponse.json(
       { message: "Action step created successfully", actionStep },
       { status: 201 }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error("Create action step error:", error)
     return NextResponse.json(
-      { error: "Failed to create action step" },
+      { error: "Failed to create action step", details: error.message },
       { status: 500 }
     )
   }

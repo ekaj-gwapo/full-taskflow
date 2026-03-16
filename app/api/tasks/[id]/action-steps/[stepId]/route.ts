@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client"
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/auth-utils"
-
-const prisma = new PrismaClient()
+import db from "@/lib/db"
 
 export async function PUT(
   request: NextRequest,
@@ -16,10 +14,8 @@ export async function PUT(
 
     const { completed } = await request.json()
 
-    // Verify task and step exist
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
-    })
+    // Verify task exists
+    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -33,24 +29,26 @@ export async function PUT(
       )
     }
 
-    const actionStep = await prisma.actionStep.update({
-      where: { id: params.stepId },
-      data: {
-        completed: typeof completed === "boolean" ? completed : undefined,
-      },
-      include: {
-        notes: true,
-      },
-    })
+    db.prepare(`
+      UPDATE action_steps 
+      SET completed = ?, 
+          updatedAt = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(completed ? 1 : 0, params.stepId);
+
+    const actionStep = {
+      ...db.prepare("SELECT * FROM action_steps WHERE id = ?").get(params.stepId) as any,
+      notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(params.stepId)
+    };
 
     return NextResponse.json(
       { message: "Action step updated successfully", actionStep },
       { status: 200 }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error("Update action step error:", error)
     return NextResponse.json(
-      { error: "Failed to update action step" },
+      { error: "Failed to update action step", details: error.message },
       { status: 500 }
     )
   }
@@ -67,9 +65,7 @@ export async function DELETE(
     }
 
     // Verify task exists
-    const task = await prisma.task.findUnique({
-      where: { id: params.id },
-    })
+    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -83,18 +79,16 @@ export async function DELETE(
       )
     }
 
-    await prisma.actionStep.delete({
-      where: { id: params.stepId },
-    })
+    db.prepare("DELETE FROM action_steps WHERE id = ?").run(params.stepId);
 
     return NextResponse.json(
       { message: "Action step deleted successfully" },
       { status: 200 }
     )
-  } catch (error) {
+  } catch (error: any) {
     console.error("Delete action step error:", error)
     return NextResponse.json(
-      { error: "Failed to delete action step" },
+      { error: "Failed to delete action step", details: error.message },
       { status: 500 }
     )
   }
