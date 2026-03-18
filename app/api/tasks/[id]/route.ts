@@ -67,9 +67,13 @@ export async function PUT(
 
     const { status, priority } = await request.json()
     
+    console.log("[v0] PUT /api/tasks/[id] - taskId:", params.id, "status:", status, "userId:", auth.user!.id)
+    
     // Fetch task to check ownership
     const existingTask: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    console.log("[v0] Task lookup result:", existingTask ? "FOUND" : "NOT FOUND")
     if (!existingTask) {
+      console.log("[v0] All tasks in DB:", db.prepare("SELECT id, title FROM tasks LIMIT 10").all())
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 

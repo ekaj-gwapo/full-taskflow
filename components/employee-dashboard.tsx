@@ -131,6 +131,12 @@ export function EmployeeDashboard() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>("all")
 
+  useEffect(() => {
+    console.log("[v0] EmployeeDashboard - currentUser:", currentUser?.id, currentUser?.name)
+    console.log("[v0] EmployeeDashboard - total tasks:", tasks.length)
+    console.log("[v0] EmployeeDashboard - all task IDs:", tasks.map(t => ({ id: t.id, assigneeId: t.assigneeId, title: t.title })))
+  }, [tasks, currentUser])
+
   const myTasks = useMemo(() => {
     return tasks.filter((t) => t.assigneeId === currentUser?.id)
   }, [tasks, currentUser])
