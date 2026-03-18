@@ -37,6 +37,10 @@ export function TaskDetailPanel({
   const { currentRole, currentUser, updateTaskStatus, addProgressNote, deleteTask, addActionStep, updateActionStepStatus, deleteActionStep, addStepNote, canAccessTask } = useTaskContext()
   const [noteContent, setNoteContent] = useState("")
 
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    updateTaskStatus(task.id, newStatus)
+  }
+
   // Security check: employees can only view their assigned tasks
   const hasAccess = canAccessTask(task.id)
   
@@ -111,7 +115,7 @@ export function TaskDetailPanel({
           {showStatusControl ? (
             <Select
               value={task.status}
-              onValueChange={(v) => updateTaskStatus(task.id, v as TaskStatus)}
+              onValueChange={(v) => handleStatusChange(v as TaskStatus)}
             >
               <SelectTrigger className="h-7 w-auto bg-secondary border-border text-xs px-2.5 gap-1.5">
                 <SelectValue />

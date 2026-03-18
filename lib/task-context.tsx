@@ -127,7 +127,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ status: status.toUpperCase() }),
+          body: JSON.stringify({ status }),
         })
 
         if (!response.ok) {
