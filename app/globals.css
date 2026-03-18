@@ -58,3 +58,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes watermark {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes watermark-reverse {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.animate-watermark {
+  animation: watermark 60s linear infinite;
+  white-space: nowrap;
+}
+
+.animate-watermark-reverse {
+  animation: watermark-reverse 60s linear infinite;
+  white-space: nowrap;
+}
+
+.confetti-particle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  animation: confetti 1s ease-out forwards;
+}
+
+@keyframes confetti {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) rotate(360deg);
+    opacity: 0;
+  }
+}

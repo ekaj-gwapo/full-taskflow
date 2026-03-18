@@ -113,143 +113,239 @@ export function TaskProvider({ children }: { children: ReactNode }) {
   )
 
   const updateTaskStatus = useCallback(
-    (taskId: string, status: TaskStatus) => {
-      // Only employees can update task status
-      if (currentRole !== "employee") {
-        console.warn("[v0] Only employees can update task status")
-        return
+    async (taskId: string, status: TaskStatus) => {
+      try {
+        const token = localStorage.getItem("token")
+        if (!token) {
+           console.error("Update task status error: No token found")
+           return
+        }
+        
+        const response = await fetch(`/api/tasks/${taskId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: status.toUpperCase() }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          console.error("Update task status error:", errorData.error || response.statusText)
+          throw new Error(errorData.error || "Failed to update task status")
+        }
+
+        const data = await response.json()
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? data.task : t))
+        )
+      } catch (error) {
+        console.error("Update task status error:", error)
       }
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                status,
-                completedAt:
-                  status === "completed"
-                    ? new Date().toISOString()
-                    : null,
-              }
-            : t
-        )
-      )
-    },
-    [currentRole]
-  )
-
-  const deleteTask = useCallback((taskId: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== taskId))
-  }, [])
-
-  const addProgressNote = useCallback(
-    (taskId: string, content: string) => {
-      if (!currentUser) return
-      const note: ProgressNote = {
-        id: `note-${Date.now()}`,
-        taskId,
-        authorId: currentUser.id,
-        authorName: currentUser.name,
-        content,
-        timestamp: new Date().toISOString(),
-      }
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? { ...t, progressNotes: [...t.progressNotes, note] }
-            : t
-        )
-      )
-    },
-    [currentUser]
-  )
-
-  const addActionStep = useCallback((taskId: string, stepTitle: string) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              actionSteps: [
-                ...(t.actionSteps || []),
-                {
-                  id: `step-${Date.now()}`,
-                  title: stepTitle,
-                  completed: false,
-                  notes: [],
-                },
-              ],
-            }
-          : t
-      )
-    )
-  }, [])
-
-  const updateActionStepStatus = useCallback(
-    (taskId: string, stepId: string, completed: boolean) => {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                actionSteps: (t.actionSteps || []).map((step) =>
-                  step.id === stepId ? { ...step, completed } : step
-                ),
-              }
-            : t
-        )
-      )
     },
     []
   )
 
-  const deleteActionStep = useCallback((taskId: string, stepId: string) => {
-    // Only admin can delete action steps
-    if (currentRole !== "admin") {
-      console.warn("[v0] Only admin can delete action steps")
-      return
+  const deleteTask = useCallback(async (taskId: string) => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to delete task")
+      }
+
+      setTasks((prev) => prev.filter((t) => t.id !== taskId))
+    } catch (error) {
+      console.error("Delete task error:", error)
     }
+  }, [])
 
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? {
-              ...t,
-              actionSteps: (t.actionSteps || []).filter((step) => step.id !== stepId),
-            }
-          : t
-      )
-    )
-  }, [currentRole])
-
-  const addStepNote = useCallback(
-    (taskId: string, stepId: string, content: string) => {
+  const addProgressNote = useCallback(
+    async (taskId: string, content: string) => {
       if (!currentUser) return
+      try {
+        const token = localStorage.getItem("token")
+        const response = await fetch(`/api/tasks/${taskId}/progress-notes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to add progress note")
+        }
+
+        const data = await response.json()
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? { ...t, progressNotes: [...t.progressNotes, data.note] }
+              : t
+          )
+        )
+      } catch (error) {
+        console.error("Add progress note error:", error)
+      }
+    },
+    [currentUser]
+  )
+
+  const addActionStep = useCallback(async (taskId: string, stepTitle: string) => {
+    try {
+      const token = localStorage.getItem("token")
+      const response = await fetch(`/api/tasks/${taskId}/action-steps`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ title: stepTitle }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to add action step")
+      }
+
+      const data = await response.json()
       setTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
             ? {
                 ...t,
-                actionSteps: (t.actionSteps || []).map((step) =>
-                  step.id === stepId
-                    ? {
-                        ...step,
-                        notes: [
-                          ...step.notes,
-                          {
-                            id: `note-${Date.now()}`,
-                            content,
-                            timestamp: new Date().toISOString(),
-                            authorName: currentUser.name,
-                          },
-                        ],
-                      }
-                    : step
-                ),
+                actionSteps: [...(t.actionSteps || []), data.actionStep],
               }
             : t
         )
       )
+    } catch (error) {
+      console.error("Add action step error:", error)
+    }
+  }, [])
+
+  const updateActionStepStatus = useCallback(
+    async (taskId: string, stepId: string, completed: boolean) => {
+      try {
+        const token = localStorage.getItem("token")
+        const response = await fetch(`/api/tasks/${taskId}/action-steps/${stepId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ completed }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to update action step")
+        }
+
+        const data = await response.json()
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  actionSteps: (t.actionSteps || []).map((step) =>
+                    step.id === stepId ? data.actionStep : step
+                  ),
+                }
+              : t
+          )
+        )
+      } catch (error) {
+        console.error("Update action step status error:", error)
+      }
+    },
+    []
+  )
+
+  const deleteActionStep = useCallback(
+    async (taskId: string, stepId: string) => {
+      // Only admin can delete action steps
+      if (currentRole !== "admin") {
+        console.warn("[v0] Only admin can delete action steps")
+        return
+      }
+
+      try {
+        const token = localStorage.getItem("token")
+        const response = await fetch(`/api/tasks/${taskId}/action-steps/${stepId}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to delete action step")
+        }
+
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  actionSteps: (t.actionSteps || []).filter((step) => step.id !== stepId),
+                }
+              : t
+          )
+        )
+      } catch (error) {
+        console.error("Delete action step error:", error)
+      }
+    },
+    [currentRole]
+  )
+
+  const addStepNote = useCallback(
+    async (taskId: string, stepId: string, content: string) => {
+      if (!currentUser) return
+      try {
+        const token = localStorage.getItem("token")
+        const response = await fetch(`/api/tasks/${taskId}/action-steps/${stepId}/notes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ content }),
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to add step note")
+        }
+
+        const data = await response.json()
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  actionSteps: (t.actionSteps || []).map((step) =>
+                    step.id === stepId
+                      ? {
+                          ...step,
+                          notes: [...step.notes, data.note],
+                        }
+                      : step
+                  ),
+                }
+              : t
+          )
+        )
+      } catch (error) {
+        console.error("Add step note error:", error)
+      }
     },
     [currentUser]
   )
@@ -349,6 +445,33 @@ export function TaskProvider({ children }: { children: ReactNode }) {
     }
   }, [tasks, currentRole, currentUser])
 
+  // Session restoration
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = localStorage.getItem("token")
+      if (!token || currentUser) return
+
+      try {
+        const response = await fetch("/api/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setCurrentUser(data.user)
+          setCurrentRole(data.user.role.toLowerCase() as UserRole)
+        } else {
+          // Token expired or invalid
+          localStorage.removeItem("token")
+        }
+      } catch (error) {
+        console.error("Session restoration error:", error)
+      }
+    }
+
+    restoreSession()
+  }, [currentUser])
+
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
@@ -358,7 +481,7 @@ export function TaskProvider({ children }: { children: ReactNode }) {
         const token = localStorage.getItem('token');
         const headers = { 'Authorization': `Bearer ${token}` };
 
-        // Fetch Tasks
+        // Fetch Tasks (Only if not already fetched or to refresh)
         const tasksRes = await fetch('/api/tasks', { headers });
         if (tasksRes.ok) {
           const data = await tasksRes.json();

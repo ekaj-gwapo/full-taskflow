@@ -43,7 +43,8 @@ export async function PUT(
     }
 
     // Users can only update their own profile
-    if (auth.user!.id !== params.id && auth.user!.role !== "ADMIN") {
+    const role = auth.user!.role?.toUpperCase()
+    if (auth.user!.id !== params.id && role !== "ADMIN" && role !== "SUPERADMIN") {
       return NextResponse.json(
         { error: "Access denied" },
         { status: 403 }

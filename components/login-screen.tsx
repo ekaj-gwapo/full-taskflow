@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useTaskContext } from "@/lib/task-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +10,7 @@ import { LayoutDashboard, LogIn, UserPlus } from "lucide-react"
 
 export function LoginScreen() {
   const { login } = useTaskContext()
+  const router = useRouter()
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -50,6 +52,7 @@ export function LoginScreen() {
       // Store token and login user
       localStorage.setItem("token", data.token)
       login(data.user.role.toLowerCase(), data.user.id, data.user)
+      router.push("/dashboard")
     } catch (err) {
       setError("An error occurred. Please try again.")
     } finally {
@@ -91,6 +94,7 @@ export function LoginScreen() {
       // Store token and login user
       localStorage.setItem("token", data.token)
       login(data.user.role.toLowerCase(), data.user.id, data.user)
+      router.push("/dashboard")
     } catch (err) {
       setError("An error occurred. Please try again.")
     } finally {

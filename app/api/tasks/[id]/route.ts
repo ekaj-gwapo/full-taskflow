@@ -60,21 +60,57 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const auth = requireAdmin(request)
+    const auth = requireAuth(request)
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { status, priority } = await request.json()
-    const completedAt = status === "COMPLETED" ? new Date().toISOString() : null;
+    
+    // Fetch task to check ownership
+    const existingTask: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 })
+    }
+
+    // Permission check:
+    // ADMIN/SUPERADMIN can update anything
+    // EMPLOYEE can only update status if they are the assignee
+    const role = auth.user!.role.toUpperCase()
+    if (role === "EMPLOYEE") {
+      if (existingTask.assigneeId !== auth.user!.id) {
+        return NextResponse.json({ error: "Access denied" }, { status: 403 })
+      }
+      
+      // Employees can only update status
+      if (priority !== undefined && priority !== existingTask.priority) {
+        return NextResponse.json({ error: "Employees cannot update priority" }, { status: 403 })
+      }
+    }
+
+    const dbStatus = status ? status.toUpperCase().replace('-', '_') : null;
+    let completedAt = null;
+    
+    // Logic for completedAt:
+    // 1. If moving to COMPLETED, set to now
+    // 2. If moving FROM COMPLETED to something else, clear it (null)
+    // 3. Otherwise, keep existing
+    if (dbStatus === "COMPLETED") {
+      completedAt = new Date().toISOString();
+    } else if (dbStatus && existingTask.status === "COMPLETED") {
+      completedAt = null;
+    } else {
+      completedAt = existingTask.completedAt;
+    }
 
     db.prepare(`
       UPDATE tasks 
       SET status = COALESCE(?, status), 
           priority = COALESCE(?, priority),
+          completedAt = ?,
           updatedAt = CURRENT_TIMESTAMP
       WHERE id = ?
-    `).run(status, priority, params.id);
+    `).run(dbStatus, priority ? priority.toUpperCase() : null, completedAt, params.id);
 
     // Fetch updated task
     const task: any = db.prepare(`
@@ -89,6 +125,7 @@ export async function PUT(
 
     const formattedTask = {
       ...task,
+      status: task.status ? task.status.toLowerCase().replace('_', '-') : 'todo',
       assignee: task.assigneeId ? { id: task.assigneeId, name: task.assigneeName, email: task.assigneeEmail, role: task.assigneeRole } : null,
       createdBy: task.createdById ? { id: task.createdById, name: task.creatorName, email: task.creatorEmail, role: task.creatorRole } : null,
       actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(params.id).map((as: any) => ({

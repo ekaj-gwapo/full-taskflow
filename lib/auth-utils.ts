@@ -44,7 +44,8 @@ export function requireAuth(request: NextRequest) {
 
 export function requireAdmin(request: NextRequest) {
   const auth = requireAuth(request)
-  if (auth.error || auth.user?.role !== "ADMIN") {
+  const role = auth.user?.role?.toUpperCase()
+  if (auth.error || (role !== "ADMIN" && role !== "SUPERADMIN")) {
     return { error: "Admin access required", status: 403, user: null }
   }
   return auth

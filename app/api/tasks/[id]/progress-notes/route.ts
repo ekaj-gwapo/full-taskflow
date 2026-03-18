@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from "uuid"
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string; stepId: string } }
+  { params }: { params: { id: string } }
 ) {
   try {
     const auth = requireAuth(request)
@@ -22,14 +22,14 @@ export async function POST(
       )
     }
 
-    // Verify task exists
+    // Verify task exists and user has access
     const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
     }
 
-    // Employee can only add notes to steps in their own tasks
+    // Permission check: admins/superadmins can add to any, employee only to their own
     const role = auth.user!.role?.toUpperCase()
     if (role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
       return NextResponse.json(
@@ -40,20 +40,20 @@ export async function POST(
 
     const noteId = uuidv4();
     db.prepare(`
-      INSERT INTO step_notes (id, content, stepId, authorId, authorName)
+      INSERT INTO progress_notes (id, content, taskId, authorId, authorName)
       VALUES (?, ?, ?, ?, ?)
-    `).run(noteId, content, params.stepId, auth.user!.id, auth.user!.name);
+    `).run(noteId, content, params.id, auth.user!.id, auth.user!.name);
 
-    const stepNote = db.prepare("SELECT * FROM step_notes WHERE id = ?").get(noteId);
+    const progressNote = db.prepare("SELECT * FROM progress_notes WHERE id = ?").get(noteId);
 
     return NextResponse.json(
-      { message: "Note created successfully", note: stepNote },
+      { message: "Progress note created successfully", note: progressNote },
       { status: 201 }
     )
   } catch (error: any) {
-    console.error("Create step note error:", error)
+    console.error("Create progress note error:", error)
     return NextResponse.json(
-      { error: "Failed to create note", details: error.message },
+      { error: "Failed to create progress note", details: error.message },
       { status: 500 }
     )
   }

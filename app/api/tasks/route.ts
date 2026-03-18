@@ -11,9 +11,10 @@ export async function GET(request: NextRequest) {
     }
 
     const user = auth.user!
+    const role = user.role.toUpperCase()
 
     let tasks: any[]
-    if (user.role === "ADMIN") {
+    if (role === "ADMIN" || role === "SUPERADMIN") {
       tasks = db.prepare(`
         SELECT t.*, 
                u1.name as assigneeName, u1.email as assigneeEmail, u1.role as assigneeRole,
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
     // Format tasks to match expected structure
     const formattedTasks = tasks.map(t => ({
       ...t,
+      status: t.status ? t.status.toLowerCase().replace('_', '-') : 'todo',
       assignee: t.assigneeId ? { id: t.assigneeId, name: t.assigneeName, email: t.assigneeEmail, role: t.assigneeRole } : null,
       createdBy: t.createdById ? { id: t.createdById, name: t.creatorName, email: t.creatorEmail, role: t.creatorRole } : null,
       actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(t.id).map((as: any) => ({
@@ -120,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     const formattedTask = {
       ...task,
+      status: task.status ? task.status.toLowerCase().replace('_', '-') : 'todo',
       assignee: task.assigneeId ? { id: task.assigneeId, name: task.assigneeName, email: task.assigneeEmail, role: task.assigneeRole } : null,
       createdBy: task.createdById ? { id: task.createdById, name: task.creatorName, email: task.creatorEmail, role: task.creatorRole } : null,
       actionSteps: db.prepare("SELECT * FROM action_steps WHERE taskId = ?").all(taskId).map((as: any) => ({

@@ -21,6 +21,8 @@ export const viewport: Viewport = {
   themeColor: '#10b981',
 }
 
+import { TaskProvider } from "@/lib/task-context"
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,7 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body className="font-sans antialiased min-h-screen">{children}</body>
+      <body className="font-sans antialiased min-h-screen">
+        <TaskProvider>
+          {children}
+        </TaskProvider>
+      </body>
     </html>
   )
 }

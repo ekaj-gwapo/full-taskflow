@@ -32,6 +32,7 @@ export const initDb = () => {
       createdById TEXT,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completedAt DATETIME,
       FOREIGN KEY (assigneeId) REFERENCES users(id),
       FOREIGN KEY (createdById) REFERENCES users(id)
     );

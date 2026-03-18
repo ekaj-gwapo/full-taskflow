@@ -22,7 +22,8 @@ export async function PUT(
     }
 
     // Employee can only update steps for their own tasks
-    if (auth.user!.role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
+    const role = auth.user!.role?.toUpperCase()
+    if (role === "EMPLOYEE" && task.assigneeId !== auth.user!.id) {
       return NextResponse.json(
         { error: "Access denied" },
         { status: 403 }

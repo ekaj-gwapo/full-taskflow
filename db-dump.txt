@@ -1,0 +1,11 @@
+--- ALL USERS ---
+{"id":"1dae4ca9-4187-49e5-9113-d23154cc917a","name":"System Administrator","email":"admin@taskflow.com","role":"ADMIN"}
+{"id":"521baf7d-1932-4545-b581-99684f4cf5ca","name":"Super Admin","email":"super-admin@taskflow.com","role":"SUPERADMIN"}
+{"id":"958095c6-3ea4-4b40-96cd-60656456f842","name":"koy","email":"koy@gmail.com","role":"EMPLOYEE"}
+{"id":"388b9620-1409-4ef7-88e3-3ab8e4f2d6d2","name":"arnel","email":"arnel@gmail.com","role":"EMPLOYEE"}
+{"id":"cd69b8ee-1e9e-4780-bf88-ffb721866240","name":"paps","email":"paps@gmail","role":"EMPLOYEE"}
+
+--- ALL TASKS ---
+{"id":"71191475-40b7-4438-a574-cd8ff5d0a227","title":"hugas","status":"TODO","assigneeId":"958095c6-3ea4-4b40-96cd-60656456f842"}
+{"id":"7e7f36c6-c2b3-42cf-91e1-88d861f22a2e","title":"laba","status":"TODO","assigneeId":"388b9620-1409-4ef7-88e3-3ab8e4f2d6d2"}
+{"id":"3663238a-f615-47a2-a3f2-5d9a0a455445","title":"ligo","status":"TODO","assigneeId":"cd69b8ee-1e9e-4780-bf88-ffb721866240"}
