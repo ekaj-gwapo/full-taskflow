@@ -121,9 +121,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
            return
         }
         
-        console.log("[v0] updateTaskStatus called with taskId:", taskId, "status:", status)
-        console.log("[v0] Available tasks in state:", tasks.map(t => ({ id: t.id, title: t.title })))
-        
         const response = await fetch(`/api/tasks/${taskId}`, {
           method: "PUT",
           headers: {
@@ -132,8 +129,6 @@ export function TaskProvider({ children }: { children: ReactNode }) {
           },
           body: JSON.stringify({ status }),
         })
-        
-        console.log("[v0] API response status:", response.status)
 
         if (!response.ok) {
           const errorData = await response.json()
