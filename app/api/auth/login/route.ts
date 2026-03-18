@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const user: any = await db.getOne("SELECT * FROM users WHERE email = $1", [email]);
 
     if (!user) {
       return NextResponse.json(

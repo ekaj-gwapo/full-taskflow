@@ -9,10 +9,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const users = db.prepare(`
+    const users = await db.getAll(`
       SELECT id, name, email, phone, role, createdAt 
       FROM users
-    `).all();
+    `)
 
     return NextResponse.json({ users }, { status: 200 })
   } catch (error) {

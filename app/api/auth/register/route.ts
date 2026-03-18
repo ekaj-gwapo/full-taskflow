@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists
-    const existingUser = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const existingUser = await db.getOne("SELECT * FROM users WHERE email = $1", [email]);
 
     if (existingUser) {
       return NextResponse.json(
@@ -31,12 +31,12 @@ export async function POST(request: NextRequest) {
     const userId = uuidv4();
 
     // Insert user
-    db.prepare(`
-      INSERT INTO users (id, name, email, password, role, phone)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(userId, name, email, hashedPassword, role || "EMPLOYEE", phone);
+    await db.execute(`
+      INSERT INTO users (id, name, email, password, role, phone, createdAt, updatedAt)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [userId, name, email, hashedPassword, role || "EMPLOYEE", phone, new Date(), new Date()]);
 
-    const user: any = db.prepare("SELECT id, name, email, role, phone FROM users WHERE id = ?").get(userId);
+    const user: any = await db.getOne("SELECT id, name, email, role, phone FROM users WHERE id = $1", [userId]);
 
     const token = jwt.sign(
       { id: user.id, email: user.email, name: user.name, role: user.role },

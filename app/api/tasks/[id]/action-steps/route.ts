@@ -23,7 +23,7 @@ export async function POST(
     }
 
     // Verify task exists and user can access it
-    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    const task: any = await db.getOne("SELECT * FROM tasks WHERE id = $1", [params.id])
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -39,15 +39,16 @@ export async function POST(
     }
 
     const stepId = uuidv4();
-    db.prepare(`
-      INSERT INTO action_steps (id, title, taskId)
-      VALUES (?, ?, ?)
-    `).run(stepId, title, params.id);
+    await db.execute(`
+      INSERT INTO action_steps (id, title, taskId, completed, createdAt, updatedAt)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [stepId, title, params.id, false, new Date(), new Date()])
 
+    const step = await db.getOne("SELECT * FROM action_steps WHERE id = $1", [stepId])
     const actionStep = {
-      ...db.prepare("SELECT * FROM action_steps WHERE id = ?").get(stepId) as any,
+      ...step,
       notes: []
-    };
+    }
 
     return NextResponse.json(
       { message: "Action step created successfully", actionStep },

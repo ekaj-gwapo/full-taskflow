@@ -15,7 +15,7 @@ export async function PUT(
     const { completed } = await request.json()
 
     // Verify task exists
-    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    const task: any = await db.getOne("SELECT * FROM tasks WHERE id = $1", [params.id])
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -30,17 +30,19 @@ export async function PUT(
       )
     }
 
-    db.prepare(`
+    await db.execute(`
       UPDATE action_steps 
-      SET completed = ?, 
-          updatedAt = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `).run(completed ? 1 : 0, params.stepId);
+      SET completed = $1,
+          updatedAt = $2
+      WHERE id = $3
+    `, [completed ? true : false, new Date(), params.stepId])
 
+    const step = await db.getOne("SELECT * FROM action_steps WHERE id = $1", [params.stepId])
+    const notes = await db.getAll("SELECT * FROM step_notes WHERE stepId = $1", [params.stepId])
     const actionStep = {
-      ...db.prepare("SELECT * FROM action_steps WHERE id = ?").get(params.stepId) as any,
-      notes: db.prepare("SELECT * FROM step_notes WHERE stepId = ?").all(params.stepId)
-    };
+      ...step,
+      notes
+    }
 
     return NextResponse.json(
       { message: "Action step updated successfully", actionStep },
@@ -66,7 +68,7 @@ export async function DELETE(
     }
 
     // Verify task exists
-    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    const task: any = await db.getOne("SELECT * FROM tasks WHERE id = $1", [params.id])
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -81,7 +83,7 @@ export async function DELETE(
       )
     }
 
-    db.prepare("DELETE FROM action_steps WHERE id = ?").run(params.stepId);
+    await db.execute("DELETE FROM action_steps WHERE id = $1", [params.stepId])
 
     return NextResponse.json(
       { message: "Action step deleted successfully" },

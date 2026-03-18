@@ -23,7 +23,7 @@ export async function POST(
     }
 
     // Verify task exists
-    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    const task: any = await db.getOne("SELECT * FROM tasks WHERE id = $1", [params.id])
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -39,12 +39,12 @@ export async function POST(
     }
 
     const noteId = uuidv4();
-    db.prepare(`
-      INSERT INTO step_notes (id, content, stepId, authorId, authorName)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(noteId, content, params.stepId, auth.user!.id, auth.user!.name);
+    await db.execute(`
+      INSERT INTO step_notes (id, content, stepId, authorId, authorName, timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [noteId, content, params.stepId, auth.user!.id, auth.user!.name, new Date()])
 
-    const stepNote = db.prepare("SELECT * FROM step_notes WHERE id = ?").get(noteId);
+    const stepNote = await db.getOne("SELECT * FROM step_notes WHERE id = $1", [noteId])
 
     return NextResponse.json(
       { message: "Note created successfully", note: stepNote },

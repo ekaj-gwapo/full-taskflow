@@ -23,7 +23,7 @@ export async function POST(
     }
 
     // Verify task exists and user has access
-    const task: any = db.prepare("SELECT * FROM tasks WHERE id = ?").get(params.id);
+    const task: any = await db.getOne("SELECT * FROM tasks WHERE id = $1", [params.id])
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
@@ -39,12 +39,12 @@ export async function POST(
     }
 
     const noteId = uuidv4();
-    db.prepare(`
-      INSERT INTO progress_notes (id, content, taskId, authorId, authorName)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(noteId, content, params.id, auth.user!.id, auth.user!.name);
+    await db.execute(`
+      INSERT INTO progress_notes (id, content, taskId, authorId, authorName, timestamp)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [noteId, content, params.id, auth.user!.id, auth.user!.name, new Date()])
 
-    const progressNote = db.prepare("SELECT * FROM progress_notes WHERE id = ?").get(noteId);
+    const progressNote = await db.getOne("SELECT * FROM progress_notes WHERE id = $1", [noteId])
 
     return NextResponse.json(
       { message: "Progress note created successfully", note: progressNote },

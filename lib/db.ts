@@ -1,77 +1,37 @@
-import Database from 'better-sqlite3';
-import path from 'path';
+import { Pool } from '@neondatabase/serverless';
 
-const dbPath = path.resolve(process.cwd(), process.env.DATABASE_URL || 'local.db');
-const db = new Database(dbPath);
+const connectionString = process.env.DATABASE_URL;
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is not set');
+}
 
-// Initialize database schema
-export const initDb = () => {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      role TEXT DEFAULT 'EMPLOYEE',
-      phone TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+const pool = new Pool({ connectionString });
 
-    CREATE TABLE IF NOT EXISTS tasks (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      priority TEXT DEFAULT 'MEDIUM',
-      status TEXT DEFAULT 'TODO',
-      dueDate DATETIME,
-      assigneeId TEXT,
-      createdById TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      completedAt DATETIME,
-      FOREIGN KEY (assigneeId) REFERENCES users(id),
-      FOREIGN KEY (createdById) REFERENCES users(id)
-    );
+export const db = {
+  async query(text: string, params?: any[]) {
+    try {
+      const result = await pool.query(text, params);
+      return result;
+    } catch (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
+  },
 
-    CREATE TABLE IF NOT EXISTS action_steps (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      completed BOOLEAN DEFAULT 0,
-      taskId TEXT NOT NULL,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
-    );
+  async execute(text: string, params?: any[]) {
+    return this.query(text, params);
+  },
 
-    CREATE TABLE IF NOT EXISTS step_notes (
-      id TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      stepId TEXT NOT NULL,
-      authorId TEXT,
-      authorName TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (stepId) REFERENCES action_steps(id) ON DELETE CASCADE
-    );
+  async getOne(text: string, params?: any[]) {
+    const result = await this.query(text, params);
+    return result.rows[0] || null;
+  },
 
-    CREATE TABLE IF NOT EXISTS progress_notes (
-      id TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      taskId TEXT NOT NULL,
-      authorId TEXT,
-      authorName TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (taskId) REFERENCES tasks(id) ON DELETE CASCADE
-    );
-  `);
+  async getAll(text: string, params?: any[]) {
+    const result = await this.query(text, params);
+    return result.rows;
+  },
 };
-
-// Initialize on load
-initDb();
 
 export default db;
